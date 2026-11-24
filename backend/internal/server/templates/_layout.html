@@ -1,0 +1,9 @@
+{{define "head"}}<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Mock DigiLocker (Sandbox)</title><link rel="stylesheet" href="/oauth/static/oauth.css"><meta name="robots" content="noindex"></head>
+<body><div class="sandbox-bar"><strong>SANDBOX</strong> · Mock DigiLocker for testing only · environment: <code>{{.Env}}</code> · Do not enter real Aadhaar, PAN or personal data</div>
+<main class="wrap"><div class="brand"><span class="logo">ML</span><div><div class="brand-name">Mock DigiLocker</div><div class="brand-sub">DigiLocker-compatible sandbox · not a government service</div></div></div>{{end}}
+{{define "foot"}}<p class="foot">Mock DigiLocker is an open-source testing simulator. All accounts and documents are synthetic.
+<a href="{{.PortalURL}}/docs" target="_blank" rel="noopener">Developer docs</a></p></main></body></html>{{end}}
+{{define "requester"}}{{if .Client}}<div class="requester"><div class="req-icon">{{printf "%.1s" .Client.Name}}</div><div><div class="muted small">Requesting application</div><div class="req-name">{{.Client.Name}}</div><div class="muted small">client_id: <code>{{.Client.ClientID}}</code></div></div></div>{{end}}{{end}}
+{{define "alerts"}}{{if .Error}}<div class="alert error" role="alert">{{.Error}}</div>{{end}}{{if .Info}}<div class="alert info">{{.Info}}</div>{{end}}{{end}}

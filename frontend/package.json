@@ -1,0 +1,25 @@
+{
+  "name": "mock-digilocker-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "React UI for Mock DigiLocker: user portal, developer console and docs portal",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types src/lib/*.test.ts"
+  },
+  "dependencies": {
+    "marked": "^18.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.0"
+  }
+}

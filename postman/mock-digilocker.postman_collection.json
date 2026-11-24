@@ -1,0 +1,2040 @@
+{
+  "info": {
+    "name": "Mock DigiLocker (sandbox)",
+    "_postman_id": "6c1f6a8e-0d1b-4d3c-9b5e-mockdigilocker",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "DigiLocker Authorized Partner API v1.11 against the Mock DigiLocker sandbox. Start with 'Headless flow' \u2014 it runs the whole authorize \u2192 consent \u2192 token \u2192 documents lifecycle without a browser. All data is synthetic."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "clientId",
+      "value": "MOCKDEMO01"
+    },
+    {
+      "key": "clientSecret",
+      "value": "mock-demo-secret-change-me"
+    },
+    {
+      "key": "redirectUri",
+      "value": "http://localhost:3000/callback"
+    },
+    {
+      "key": "personaMobile",
+      "value": "9999900001"
+    },
+    {
+      "key": "adminUser",
+      "value": "admin"
+    },
+    {
+      "key": "adminPassword",
+      "value": "admin123"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "code",
+      "value": ""
+    },
+    {
+      "key": "codeVerifier",
+      "value": ""
+    },
+    {
+      "key": "codeChallenge",
+      "value": ""
+    },
+    {
+      "key": "state",
+      "value": ""
+    },
+    {
+      "key": "docUri",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "ts",
+      "value": ""
+    },
+    {
+      "key": "hmac",
+      "value": ""
+    },
+    {
+      "key": "deviceCode",
+      "value": ""
+    },
+    {
+      "key": "consentPath",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Headless flow (run as a folder)",
+      "item": [
+        {
+          "name": "1. Admin login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{adminUser}}\",\"password\":\"{{adminPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('adminToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Reset sessions, consents, scenarios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "reset"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"targets\":[\"consents\",\"sessions\",\"scenarios\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Persona login (sets SSO cookie)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/portal-api/auth/pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "portal-api",
+                "auth",
+                "pin"
+              ]
+            },
+            "description": "Signs in as a test persona. The mdl_sso cookie lets the consent page skip the login screen.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"identifier\":\"{{personaMobile}}\",\"pin\":\"123456\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Scenario: auto-approve consent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenarios"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"enabled\":true,\"scope\":\"global\",\"endpoint\":\"authorize\",\"effect\":\"consent_auto_approve\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Authorize (\u2192 consent page)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/authorize?response_type=code&client_id={{clientId}}&redirect_uri={{redirectUri}}&state={{state}}&code_challenge={{codeChallenge}}&code_challenge_method=S256&scope=openid&req_doctype=PANCR,DRVLC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "authorize"
+              ],
+              "query": [
+                {
+                  "key": "response_type",
+                  "value": "code"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirectUri}}"
+                },
+                {
+                  "key": "state",
+                  "value": "{{state}}"
+                },
+                {
+                  "key": "code_challenge",
+                  "value": "{{codeChallenge}}"
+                },
+                {
+                  "key": "code_challenge_method",
+                  "value": "S256"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid"
+                },
+                {
+                  "key": "req_doctype",
+                  "value": "PANCR,DRVLC"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('302 to consent', () => pm.expect(pm.response.headers.get('Location')).to.include('/oauth/consent'));",
+                  "pm.collectionVariables.set('consentPath', pm.response.headers.get('Location'));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate a PKCE verifier + S256 challenge and a state value",
+                  "const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';",
+                  "let v = ''; for (let i = 0; i < 64; i++) v += chars[Math.floor(Math.random() * chars.length)];",
+                  "const challenge = CryptoJS.SHA256(v).toString(CryptoJS.enc.Base64).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "pm.collectionVariables.set('codeVerifier', v);",
+                  "pm.collectionVariables.set('codeChallenge', challenge);",
+                  "pm.collectionVariables.set('state', 'pm-' + Date.now());"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "6. Consent (auto-approved \u2192 redirect_uri?code=)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}{{consentPath}}",
+              "host": [
+                "{{baseUrl}}{{consentPath}}"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const loc = pm.response.headers.get('Location');",
+                  "pm.test('redirected with code', () => pm.expect(loc).to.include('code='));",
+                  "const code = loc.match(/[?&]code=([^&]+)/)[1];",
+                  "pm.collectionVariables.set('code', code);",
+                  "pm.test('state echoed', () => pm.expect(loc).to.include('state=' + pm.collectionVariables.get('state')));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "7. Exchange code for token (PKCE)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "token"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "{{code}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirectUri}}"
+                },
+                {
+                  "key": "code_verifier",
+                  "value": "{{codeVerifier}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{clientSecret}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('DigiLocker token fields', () => ['access_token','expires_in','token_type','refresh_token','digilockerid','name','dob','gender','eaadhaar','reference_key'].forEach(f => pm.expect(j).to.have.property(f)));",
+                  "pm.collectionVariables.set('accessToken', j.access_token);",
+                  "if (j.refresh_token) pm.collectionVariables.set('refreshToken', j.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Issued documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/2/files/issued",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "2",
+                "files",
+                "issued"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json().items;",
+                  "pm.test('only consented doctypes', () => items.forEach(i => pm.expect(['PANCR','DRVLC']).to.include(i.doctype)));",
+                  "if (items.length) pm.collectionVariables.set('docUri', items[0].uri);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Download document + verify hmac",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/file/{{docUri}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "file",
+                "{{docUri}}"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const mac = CryptoJS.HmacSHA256(CryptoJS.lib.WordArray.create(pm.response.stream), pm.collectionVariables.get('clientSecret')).toString(CryptoJS.enc.Base64);",
+                  "pm.test('hmac header matches body', () => pm.expect(pm.response.headers.get('hmac')).to.eql(mac));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Clear scenarios",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenarios"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authorization",
+      "item": [
+        {
+          "name": "Authorize URL (open in a browser)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/authorize?response_type=code&client_id={{clientId}}&redirect_uri={{redirectUri}}&state={{state}}&code_challenge={{codeChallenge}}&code_challenge_method=S256&scope=openid&req_doctype=PANCR,DRVLC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "authorize"
+              ],
+              "query": [
+                {
+                  "key": "response_type",
+                  "value": "code"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirectUri}}"
+                },
+                {
+                  "key": "state",
+                  "value": "{{state}}"
+                },
+                {
+                  "key": "code_challenge",
+                  "value": "{{codeChallenge}}"
+                },
+                {
+                  "key": "code_challenge_method",
+                  "value": "S256"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid"
+                },
+                {
+                  "key": "req_doctype",
+                  "value": "PANCR,DRVLC"
+                }
+              ]
+            },
+            "description": "Postman can't complete the browser login. Copy the URL from the console, open it in a browser, sign in (OTP 123456), approve, then copy `code` from the redirect into the collection variable `code`. Or use the 'Headless flow' folder.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate a PKCE verifier + S256 challenge and a state value",
+                  "const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';",
+                  "let v = ''; for (let i = 0; i < 64; i++) v += chars[Math.floor(Math.random() * chars.length)];",
+                  "const challenge = CryptoJS.SHA256(v).toString(CryptoJS.enc.Base64).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "pm.collectionVariables.set('codeVerifier', v);",
+                  "pm.collectionVariables.set('codeChallenge', challenge);",
+                  "pm.collectionVariables.set('state', 'pm-' + Date.now());"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "Token \u2014 authorization_code",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "token"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "{{code}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirectUri}}"
+                },
+                {
+                  "key": "code_verifier",
+                  "value": "{{codeVerifier}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{clientSecret}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('DigiLocker token fields', () => ['access_token','expires_in','token_type','refresh_token','digilockerid','name','dob','gender','eaadhaar','reference_key'].forEach(f => pm.expect(j).to.have.property(f)));",
+                  "pm.collectionVariables.set('accessToken', j.access_token);",
+                  "if (j.refresh_token) pm.collectionVariables.set('refreshToken', j.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token \u2014 MeriPehchaan OIDC (/2/token)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/2/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "2",
+                "token"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "{{code}}"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "{{redirectUri}}"
+                },
+                {
+                  "key": "code_verifier",
+                  "value": "{{codeVerifier}}"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{clientSecret}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('DigiLocker token fields', () => ['access_token','expires_in','token_type','refresh_token','digilockerid','name','dob','gender','eaadhaar','reference_key'].forEach(f => pm.expect(j).to.have.property(f)));",
+                  "pm.collectionVariables.set('accessToken', j.access_token);",
+                  "if (j.refresh_token) pm.collectionVariables.set('refreshToken', j.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token \u2014 refresh_token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "token"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refreshToken}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{clientSecret}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('DigiLocker token fields', () => ['access_token','expires_in','token_type','refresh_token','digilockerid','name','dob','gender','eaadhaar','reference_key'].forEach(f => pm.expect(j).to.have.property(f)));",
+                  "pm.collectionVariables.set('accessToken', j.access_token);",
+                  "if (j.refresh_token) pm.collectionVariables.set('refreshToken', j.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoke token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/revoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "revoke"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                },
+                {
+                  "key": "token_type_hint",
+                  "value": "access_token"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{clientSecret}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Device code (limited input)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/code",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "code"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "response_type",
+                  "value": "device_code"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "dl_mobile",
+                  "value": "{{personaMobile}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('deviceCode', pm.response.json().device_code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token \u2014 device_code",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "token"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "urn:ietf:params:oauth:grant-type:device_code"
+                },
+                {
+                  "key": "device_code",
+                  "value": "{{deviceCode}}"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "dl_otp",
+                  "value": "123456"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('DigiLocker token fields', () => ['access_token','expires_in','token_type','refresh_token','digilockerid','name','dob','gender','eaadhaar','reference_key'].forEach(f => pm.expect(j).to.have.property(f)));",
+                  "pm.collectionVariables.set('accessToken', j.access_token);",
+                  "if (j.refresh_token) pm.collectionVariables.set('refreshToken', j.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OIDC discovery",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/.well-known/openid-configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "openid-configuration"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "JWKS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/.well-known/jwks.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "jwks.json"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": []
+        }
+      ]
+    },
+    {
+      "name": "User & files",
+      "item": [
+        {
+          "name": "User details (v1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "user"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User details (v2)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/2/user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "2",
+                "user"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Issued documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/2/files/issued",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "2",
+                "files",
+                "issued"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const i = pm.response.json().items; if (i && i.length) pm.collectionVariables.set('docUri', i[0].uri);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "File (PDF) by URI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/file/{{docUri}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "file",
+                "{{docUri}}"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Certificate XML by URI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/xml/{{docUri}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "xml",
+                "{{docUri}}"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "e-Aadhaar XML (v3)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/3/xml/eaadhaar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "3",
+                "xml",
+                "eaadhaar"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Self-uploaded files (root)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/files/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "files"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        }
+      ]
+    },
+    {
+      "name": "Pull, account & meta (signed)",
+      "item": [
+        {
+          "name": "Pull: issuers",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/pull/issuers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "pull",
+                "issuers"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "clientid",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "ts",
+                  "value": "{{ts}}"
+                },
+                {
+                  "key": "hmac",
+                  "value": "{{hmac}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const fields = [\"clientid\"];",
+                  "const body = pm.request.body.urlencoded;",
+                  "const get = (k) => (body.find((x) => x.key === k) || {}).value || '';",
+                  "let s = pm.collectionVariables.get('clientSecret');",
+                  "for (const f of fields) s += (f === 'clientid' ? pm.collectionVariables.get('clientId') : pm.variables.replaceIn(get(f)));",
+                  "s += ts;",
+                  "pm.collectionVariables.set('ts', ts);",
+                  "pm.collectionVariables.set('hmac', CryptoJS.SHA256(s).toString(CryptoJS.enc.Hex));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pull: doctypes",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/pull/doctype",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "pull",
+                "doctype"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "clientid",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "orgid",
+                  "value": "000102"
+                },
+                {
+                  "key": "ts",
+                  "value": "{{ts}}"
+                },
+                {
+                  "key": "hmac",
+                  "value": "{{hmac}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const fields = [\"clientid\", \"orgid\"];",
+                  "const body = pm.request.body.urlencoded;",
+                  "const get = (k) => (body.find((x) => x.key === k) || {}).value || '';",
+                  "let s = pm.collectionVariables.get('clientSecret');",
+                  "for (const f of fields) s += (f === 'clientid' ? pm.collectionVariables.get('clientId') : pm.variables.replaceIn(get(f)));",
+                  "s += ts;",
+                  "pm.collectionVariables.set('ts', ts);",
+                  "pm.collectionVariables.set('hmac', CryptoJS.SHA256(s).toString(CryptoJS.enc.Hex));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pull: parameters",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/pull/parameters",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "pull",
+                "parameters"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "clientid",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "orgid",
+                  "value": "000102"
+                },
+                {
+                  "key": "doctype",
+                  "value": "PANCR"
+                },
+                {
+                  "key": "ts",
+                  "value": "{{ts}}"
+                },
+                {
+                  "key": "hmac",
+                  "value": "{{hmac}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const fields = [\"clientid\", \"orgid\", \"doctype\"];",
+                  "const body = pm.request.body.urlencoded;",
+                  "const get = (k) => (body.find((x) => x.key === k) || {}).value || '';",
+                  "let s = pm.collectionVariables.get('clientSecret');",
+                  "for (const f of fields) s += (f === 'clientid' ? pm.collectionVariables.get('clientId') : pm.variables.replaceIn(get(f)));",
+                  "s += ts;",
+                  "pm.collectionVariables.set('ts', ts);",
+                  "pm.collectionVariables.set('hmac', CryptoJS.SHA256(s).toString(CryptoJS.enc.Hex));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pull: pull document (persona 9999900008)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/oauth2/1/pull/pulldocument",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "oauth2",
+                "1",
+                "pull",
+                "pulldocument"
+              ]
+            },
+            "description": "Sign in as Pooja Pullwali (9999900008) when authorizing; her PAN is not in the locker until pulled.",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "orgid",
+                  "value": "000102"
+                },
+                {
+                  "key": "doctype",
+                  "value": "PANCR"
+                },
+                {
+                  "key": "consent",
+                  "value": "Y"
+                },
+                {
+                  "key": "panno",
+                  "value": "ZZZPW0008W"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Account: verify by mobile",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/account/2/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "account",
+                "2",
+                "verify"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "clientid",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "mobile",
+                  "value": "{{personaMobile}}"
+                },
+                {
+                  "key": "ts",
+                  "value": "{{ts}}"
+                },
+                {
+                  "key": "hmac",
+                  "value": "{{hmac}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const fields = [\"clientid\", \"mobile\"];",
+                  "const body = pm.request.body.urlencoded;",
+                  "const get = (k) => (body.find((x) => x.key === k) || {}).value || '';",
+                  "let s = pm.collectionVariables.get('clientSecret');",
+                  "for (const f of fields) s += (f === 'clientid' ? pm.collectionVariables.get('clientId') : pm.variables.replaceIn(get(f)));",
+                  "s += ts;",
+                  "pm.collectionVariables.set('ts', ts);",
+                  "pm.collectionVariables.set('hmac', CryptoJS.SHA256(s).toString(CryptoJS.enc.Hex));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Statistics",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/statistics/1/counts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "statistics",
+                "1",
+                "counts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "clientid",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "ts",
+                  "value": "{{ts}}"
+                },
+                {
+                  "key": "hmac",
+                  "value": "{{hmac}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const fields = [\"clientid\"];",
+                  "const body = pm.request.body.urlencoded;",
+                  "const get = (k) => (body.find((x) => x.key === k) || {}).value || '';",
+                  "let s = pm.collectionVariables.get('clientSecret');",
+                  "for (const f of fields) s += (f === 'clientid' ? pm.collectionVariables.get('clientId') : pm.variables.replaceIn(get(f)));",
+                  "s += ts;",
+                  "pm.collectionVariables.set('ts', ts);",
+                  "pm.collectionVariables.set('hmac', CryptoJS.SHA256(s).toString(CryptoJS.enc.Hex));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Sandbox admin (scenarios, inspector, reset)",
+      "item": [
+        {
+          "name": "Admin login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{adminUser}}\",\"password\":\"{{adminPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('adminToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Scenario catalog",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenario-catalog",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenario-catalog"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Scenario: expired access tokens",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenarios"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"enabled\":true,\"scope\":\"global\",\"endpoint\":\"*\",\"effect\":\"access_token_expired\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Scenario: issuer down for one client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenarios"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"enabled\":true,\"scope\":\"client\",\"target_id\":\"{{clientId}}\",\"endpoint\":\"file\",\"effect\":\"issuer_unavailable\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Scenario: user's next OTP is wrong",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenarios"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"enabled\":true,\"scope\":\"user\",\"target_id\":\"{{personaMobile}}\",\"endpoint\":\"otp\",\"effect\":\"otp_incorrect\",\"max_hits\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Preset: DigiLocker down",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenarios/presets/digilocker_down",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenarios",
+                "presets",
+                "digilocker_down"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Clear scenarios (happy path)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/scenarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "scenarios"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Request log (errors)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/requests?category=api&status=error",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "api"
+                },
+                {
+                  "key": "status",
+                  "value": "error"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        },
+        {
+          "name": "Reset everything",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin-api/reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-api",
+                "reset"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"targets\":[\"all\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}"
+                }
+              ]
+            }
+          },
+          "event": []
+        }
+      ]
+    }
+  ]
+}

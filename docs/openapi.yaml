@@ -1,0 +1,555 @@
+openapi: 3.0.3
+info:
+  title: Mock DigiLocker — DigiLocker-compatible sandbox API
+  version: 1.0.0
+  description: |
+    Sandbox implementation of the DigiLocker **Authorized Partner API v1.11** (plus the MeriPehchaan
+    OIDC token endpoint) for development, QA and UAT. All data is synthetic.
+
+    * Paths are served both as `/public/oauth2/...` (base URL = host) and `/oauth2/...`
+      (base URL = `<host>/public`, the API Setu OpenAPI form).
+    * Errors use `{ "error": "...", "error_description": "..." }` unless the client is assigned an
+      API profile with another `error_format`.
+    * Behaviour can be altered per user / client / globally with the scenario simulator
+      (`/admin-api/scenarios`), e.g. expired tokens, issuer outages or timeouts.
+
+    **Not affiliated with DigiLocker / MeitY. Never send real identity data to this server.**
+  license: { name: MIT }
+servers:
+  - url: http://localhost:8080
+    description: Local / Docker
+tags:
+  - { name: Authorization, description: OAuth 2.0 authorization-code (+PKCE), implicit, refresh and device flows }
+  - { name: User, description: User details }
+  - { name: Files, description: Issued and self-uploaded documents }
+  - { name: Pull, description: Meta and pull-document APIs }
+  - { name: Account, description: Account verification, push URI, signup, statistics }
+  - { name: OIDC, description: Discovery and signing keys }
+  - { name: Sandbox admin, description: Automation endpoints of the developer console (not part of DigiLocker) }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, description: Access token from the token endpoint }
+    clientBasic: { type: http, scheme: basic, description: client_id as username, client_secret as password }
+    adminBearer: { type: http, scheme: bearer, description: Token from POST /admin-api/login }
+  parameters:
+    uri:
+      name: uri
+      in: path
+      required: true
+      description: Document URI from the issued-documents list, e.g. `in.gov.pan-PANCR-ZZZPT0001Z`
+      schema: { type: string }
+  headers:
+    hmac:
+      description: Base64(HMAC-SHA256(client_secret, response body)). Verify before trusting the document.
+      schema: { type: string }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: invalid_token }
+        error_description: { type: string, example: The access token provided has expired }
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string, example: 9f2c1e0d5b7a4c3e8f1a2b3c4d5e6f708192a3b4 }
+        expires_in: { type: integer, example: 3600 }
+        token_type: { type: string, example: Bearer }
+        scope: { type: string, example: openid }
+        refresh_token: { type: string }
+        digilockerid: { type: string, example: a1b2c3d4-0001-4000-8000-000000000001 }
+        name: { type: string, example: Asha Testkumari }
+        dob: { type: string, description: DDMMYYYY (configurable via API profile), example: '15081990' }
+        gender: { type: string, enum: [M, F, T] }
+        eaadhaar: { type: string, enum: [Y, N] }
+        new_account: { type: string, enum: [Y, N] }
+        reference_key: { type: string }
+        id_token: { type: string, description: RS256 JWT, present when scope contains openid }
+    User:
+      type: object
+      properties:
+        digilockerid: { type: string }
+        name: { type: string }
+        dob: { type: string, example: '15081990' }
+        gender: { type: string }
+        eaadhaar: { type: string, enum: [Y, N] }
+        reference_key: { type: string }
+        email: { type: string, description: v2 only (compatibility extension) }
+        mobile: { type: string, description: v2 only (compatibility extension) }
+        user_sso_id: { type: string, description: v2 only }
+    IssuedItem:
+      type: object
+      properties:
+        name: { type: string, example: PAN Verification Record }
+        type: { type: string, example: file }
+        size: { type: string, example: '' }
+        date: { type: string, example: 24-11-2026 }
+        parent: { type: string, example: '' }
+        mime: { type: array, items: { type: string }, example: [application/pdf, application/xml] }
+        uri: { type: string, example: in.gov.pan-PANCR-ZZZPT0001Z }
+        doctype: { type: string, example: PANCR }
+        description: { type: string, example: PAN Verification Record }
+        issuerid: { type: string, example: in.gov.pan }
+        issuer: { type: string, example: Income Tax Department (Mock) }
+    Scenario:
+      type: object
+      required: [effect]
+      properties:
+        id: { type: string, readOnly: true }
+        name: { type: string }
+        enabled: { type: boolean, default: true }
+        scope: { type: string, enum: [global, user, client], default: global }
+        target_id: { type: string, description: user id / mobile / e-mail (scope=user) or client_id (scope=client) }
+        endpoint: { type: string, enum: [login, otp, authorize, token, user, files, file, xml, eaadhaar, pull, account, revoke, webhook, '*'] }
+        effect: { type: string, example: access_token_expired, description: See GET /admin-api/scenario-catalog }
+        probability: { type: number, minimum: 0, maximum: 1 }
+        latency_ms: { type: integer }
+        max_hits: { type: integer, description: Fire only for the first N matching calls (0 = unlimited) }
+        params: { type: object, additionalProperties: { type: string } }
+
+paths:
+  /public/oauth2/1/authorize:
+    get:
+      tags: [Authorization]
+      summary: Get authorization code (browser redirect to the consent pages)
+      description: |
+        Not an API call — redirect the user's browser here. The user signs in with a test persona
+        (OTP or PIN), selects documents and approves or denies. The browser is then redirected to
+        `redirect_uri?code=…&state=…` or `redirect_uri?error=access_denied&error_description=…&state=…`.
+        `/public/oauth2/2/authorize` is an alias.
+      parameters:
+        - { name: response_type, in: query, required: true, schema: { type: string, enum: [code, token] } }
+        - { name: client_id, in: query, required: true, schema: { type: string } }
+        - { name: redirect_uri, in: query, description: Must exactly match a registered URI (optional for code flow), schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+        - { name: code_challenge, in: query, schema: { type: string }, description: BASE64URL-NO-PADDING(SHA256(code_verifier)) }
+        - { name: code_challenge_method, in: query, schema: { type: string, enum: [S256] } }
+        - { name: scope, in: query, schema: { type: string, example: openid } }
+        - { name: nonce, in: query, schema: { type: string } }
+        - { name: dl_flow, in: query, schema: { type: string, enum: [signup] } }
+        - { name: verified_mobile, in: query, schema: { type: string } }
+        - { name: acr, in: query, schema: { type: string, enum: [pan, aadhaar, driving_licence] }, description: Adds verified claims to the id_token }
+        - { name: req_doctype, in: query, schema: { type: string, example: 'PANCR,DRVLC' }, description: Document types to pre-select on the consent screen }
+        - { name: purpose, in: query, schema: { type: string } }
+        - { name: consent_valid_till, in: query, schema: { type: string }, description: Unix timestamp (s or ms), duration in seconds, or RFC 3339 }
+      responses:
+        '302': { description: Redirect to the login / consent page or back to redirect_uri }
+        '400': { description: HTML error page (unknown client or unregistered redirect_uri — no redirect for safety) }
+
+  /public/oauth2/1/token:
+    post:
+      tags: [Authorization]
+      summary: Get / refresh access token
+      description: |
+        `grant_type=authorization_code` (code, redirect_uri, code_verifier), `grant_type=refresh_token`
+        (refresh_token) or `grant_type=urn:ietf:params:oauth:grant-type:device_code` (device_code, dl_otp).
+        Client credentials via HTTP Basic or `client_id`/`client_secret` form fields.
+        `/public/oauth2/2/token` (MeriPehchaan OIDC) is served by the same handler.
+        Codes are single-use; replaying a code fails and revokes the tokens it issued.
+      security: [{ clientBasic: [] }, {}]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type]
+              properties:
+                grant_type: { type: string, enum: [authorization_code, refresh_token, 'urn:ietf:params:oauth:grant-type:device_code'] }
+                code: { type: string }
+                redirect_uri: { type: string }
+                code_verifier: { type: string }
+                client_id: { type: string }
+                client_secret: { type: string }
+                refresh_token: { type: string }
+                device_code: { type: string }
+                dl_otp: { type: string }
+      responses:
+        '200': { description: Tokens, content: { application/json: { schema: { $ref: '#/components/schemas/TokenResponse' } } } }
+        '400': { description: 'invalid_grant (invalid / expired / reused code, PKCE mismatch), invalid_request, invalid_grant_type', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { description: invalid_client, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /public/oauth2/1/revoke:
+    post:
+      tags: [Authorization]
+      summary: Revoke an access or refresh token (always 200)
+      security: [{ clientBasic: [] }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+                token_type_hint: { type: string, enum: [access_token, refresh_token] }
+      responses:
+        '200': { description: Revoked (or token unknown) }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /public/oauth2/1/code:
+    post:
+      tags: [Authorization]
+      summary: Limited-input devices — get device code (sends an OTP)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [response_type, client_id]
+              properties:
+                response_type: { type: string, enum: [device_code] }
+                client_id: { type: string }
+                dl_username: { type: string }
+                dl_mobile: { type: string }
+      responses:
+        '200':
+          description: Device code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  device_code: { type: string }
+                  dl_masked_mobile: { type: string, example: '******0001' }
+                  dl_masked_email: { type: string }
+                  expires_in: { type: integer, example: 600 }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /public/oauth2/1/user:
+    get:
+      tags: [User]
+      summary: Get user details (v1). /public/oauth2/2/user adds email, mobile, user_sso_id.
+      security: [{ bearer: [] }]
+      responses:
+        '200': { description: User, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /public/oauth2/2/files/issued:
+    get:
+      tags: [Files]
+      summary: List issued documents (only those the user consented to share)
+      description: /public/oauth2/1/files/issued is an alias.
+      security: [{ bearer: [] }]
+      responses:
+        '200':
+          description: Issued documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/IssuedItem' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+
+  /public/oauth2/1/files/{id}:
+    get:
+      tags: [Files]
+      summary: List self-uploaded documents in a folder (omit id for the root)
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string }, description: Folder id from a previous listing }
+      responses:
+        '200':
+          description: Folder listing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  directory: { type: string }
+                  items: { type: array, items: { type: object } }
+        '404': { description: invalid_id }
+
+  /public/oauth2/1/file/{uri}:
+    get:
+      tags: [Files]
+      summary: Get file (PDF) from URI
+      security: [{ bearer: [] }]
+      parameters: [{ $ref: '#/components/parameters/uri' }]
+      responses:
+        '200':
+          description: File bytes
+          headers: { hmac: { $ref: '#/components/headers/hmac' } }
+          content: { application/pdf: { schema: { type: string, format: binary } } }
+        '400': { description: uri_missing }
+        '401': { description: invalid_token }
+        '404': { description: invalid_uri (unknown, or not shared with this client) }
+        '500': { description: 'repository_service_resperror / repository_service_unresponsive' }
+        '503': { description: 'repository_service_inactive (issuer down) / repository_service_unpublished (document unavailable)' }
+
+  /public/oauth2/1/xml/{uri}:
+    get:
+      tags: [Files]
+      summary: Get certificate data in XML from URI
+      security: [{ bearer: [] }]
+      parameters: [{ $ref: '#/components/parameters/uri' }]
+      responses:
+        '200':
+          description: Certificate XML
+          headers: { hmac: { $ref: '#/components/headers/hmac' } }
+          content: { application/xml: { schema: { type: string } } }
+        '404': { description: invalid_uri }
+
+  /public/oauth2/3/xml/eaadhaar:
+    get:
+      tags: [Files]
+      summary: Get e-Aadhaar data in XML (v3; v1/v2 paths are aliases)
+      security: [{ bearer: [] }]
+      responses:
+        '200':
+          description: Synthetic e-Aadhaar KYC XML
+          headers: { hmac: { $ref: '#/components/headers/hmac' } }
+          content: { application/xml: { schema: { type: string } } }
+        '403': { description: access_denied — user did not consent to share Aadhaar data }
+        '404': { description: aadhaar_not_linked }
+
+  /public/oauth2/1/file/upload:
+    post:
+      tags: [Files]
+      summary: Upload a file to the user's locker
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: path, in: header, required: true, schema: { type: string, example: /Partner/receipt.pdf } }
+        - { name: hmac, in: header, required: true, schema: { type: string }, description: Base64(HMAC-SHA256(client_secret, body)) }
+      requestBody:
+        content:
+          application/pdf: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          image/jpeg: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: Uploaded, content: { application/json: { schema: { type: object, properties: { path: { type: string }, size: { type: string }, uri: { type: string } } } } } }
+        '400': { description: path_missing, contenttype_missing, hmac_missing, hmac_mismatch, invalid_filename, invalid_filetype, mimetype_mismatch, invalid_filesize, file_data_missing }
+
+  /public/oauth2/1/pull/issuers:
+    post:
+      tags: [Pull]
+      summary: Get list of issuers
+      description: Signed with `ts` (unix seconds) and `hmac` = hex/base64 SHA-256(client_secret + clientid + ts). Enforced only with HMAC_VALIDATION=strict.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, properties: { clientid: { type: string }, ts: { type: string }, hmac: { type: string } } }
+      responses:
+        '200': { description: Issuers, content: { application/json: { schema: { type: object, properties: { issuers: { type: array, items: { type: object, properties: { orgid: { type: string }, issuerid: { type: string }, name: { type: string }, category: { type: string }, description: { type: string } } } } } } } } }
+        '401': { description: invalid_client_id }
+
+  /public/oauth2/1/pull/doctype:
+    post:
+      tags: [Pull]
+      summary: Get document types provided by an issuer (hmac over clientid + orgid + ts)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, properties: { clientid: { type: string }, orgid: { type: string }, ts: { type: string }, hmac: { type: string } } }
+      responses:
+        '200': { description: Documents, content: { application/json: { schema: { type: object, properties: { documents: { type: array, items: { type: object, properties: { doctype: { type: string }, description: { type: string } } } } } } } } }
+
+  /public/oauth2/1/pull/parameters:
+    post:
+      tags: [Pull]
+      summary: Get search parameters for a document (hmac over clientid + orgid + doctype + ts)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, properties: { clientid: { type: string }, orgid: { type: string }, doctype: { type: string }, ts: { type: string }, hmac: { type: string } } }
+      responses:
+        '200': { description: Parameters, content: { application/json: { schema: { type: object, properties: { parameters: { type: array, items: { type: object, properties: { label: { type: string }, paramname: { type: string }, valuelist: { type: string, nullable: true }, example: { type: string } } } } } } } } }
+
+  /public/oauth2/1/pull/pulldocument:
+    post:
+      tags: [Pull]
+      summary: Pull a document from an issuer into the user's locker
+      description: Matches the parameters against the persona's synthetic issuer records (e.g. panno must equal the persona's PAN).
+      security: [{ bearer: [] }]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [orgid, doctype, consent]
+              properties:
+                orgid: { type: string, example: '000102' }
+                doctype: { type: string, example: PANCR }
+                consent: { type: string, enum: [Y] }
+                panno: { type: string, example: ZZZPW0008W }
+              additionalProperties: { type: string }
+      responses:
+        '200': { description: Pulled, content: { application/json: { schema: { type: object, properties: { uri: { type: string } } } } } }
+        '400': { description: 'invalid_orgid, invalid_doctype, uri_exists, aadhaar_not_linked, pull_response_pending' }
+        '404': { description: record_not_found }
+
+  /public/account/2/verify:
+    post:
+      tags: [Account]
+      summary: Verify whether an account exists (uid = synthetic 12-digit UID 00000000xxxx, or mobile)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, properties: { clientid: { type: string }, uid: { type: string }, mobile: { type: string }, ts: { type: string }, hmac: { type: string } } }
+      responses:
+        '200': { description: Result, content: { application/json: { schema: { type: object, properties: { registered: { type: string, enum: ['true', 'false'] }, digilockerid: { type: string } } } } } }
+
+  /public/account/1/pushuri:
+    post:
+      tags: [Account]
+      summary: Issuer pushes / updates / deletes a document URI in a user's account (action A/U/D)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                clientid: { type: string }
+                digilockerid: { type: string }
+                uri: { type: string }
+                doctype: { type: string }
+                description: { type: string }
+                docid: { type: string }
+                issuedate: { type: string, example: '01012024' }
+                validfrom: { type: string }
+                validto: { type: string }
+                action: { type: string, enum: [A, U, D] }
+                ts: { type: string }
+                hmac: { type: string }
+      responses:
+        '200': { description: OK }
+        '400': { description: invalid_parameter }
+        '404': { description: invalid_digilocker_id }
+
+  /public/signup/2/demoauth:
+    post:
+      tags: [Account]
+      summary: Sign up (demographic). Only synthetic UIDs starting with 0000 are accepted.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                clientid: { type: string }
+                uid: { type: string }
+                name: { type: string }
+                dob: { type: string, example: '01011990' }
+                gender: { type: string, enum: [M, F, T] }
+                mobile: { type: string }
+                verification: { type: string, enum: [Y, N] }
+                demoauth: { type: string, enum: [Y, N] }
+                consent: { type: string, enum: [Y] }
+                ts: { type: string }
+                hmac: { type: string }
+      responses:
+        '200': { description: 'Tokens (verification=N) or {mobile: masked} (verification=Y)' }
+        '400': { description: invalid_parameter, mobile_exists, auth_failure }
+
+  /public/signup/1/demoauthverify:
+    post:
+      tags: [Account]
+      summary: Verify the sign-up OTP and receive tokens
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, properties: { clientid: { type: string }, mobile: { type: string }, otp: { type: string }, ts: { type: string }, hmac: { type: string } } }
+      responses:
+        '200': { description: Tokens }
+        '401': { description: invalid_otp }
+
+  /public/statistics/1/counts:
+    post:
+      tags: [Account]
+      summary: Sandbox statistics
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, properties: { clientid: { type: string }, ts: { type: string }, hmac: { type: string } } }
+      responses:
+        '200': { description: Counts }
+
+  /.well-known/openid-configuration:
+    get:
+      tags: [OIDC]
+      summary: OpenID Connect discovery document
+      responses: { '200': { description: Discovery JSON } }
+  /.well-known/jwks.json:
+    get:
+      tags: [OIDC]
+      summary: JWKS for verifying id_token signatures (also /public/oauth2/1/jwks)
+      responses: { '200': { description: JWKS } }
+
+  /admin-api/login:
+    post:
+      tags: [Sandbox admin]
+      summary: Console login (returns a bearer token for /admin-api/*)
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { username: { type: string, example: admin }, password: { type: string, example: admin123 } } }
+      responses:
+        '200': { description: Token, content: { application/json: { schema: { type: object, properties: { token: { type: string }, role: { type: string } } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+  /admin-api/reset:
+    post:
+      tags: [Sandbox admin]
+      summary: Reset the environment to a known state (role qa or admin)
+      security: [{ adminBearer: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targets:
+                  type: array
+                  items: { type: string, enum: [all, users, documents, consents, sessions, scenarios, logs, webhooks, clients, issuers, otps, activity] }
+      responses: { '200': { description: Summary of what was reset } }
+  /admin-api/scenarios:
+    get:
+      tags: [Sandbox admin]
+      summary: List scenarios
+      security: [{ adminBearer: [] }]
+      responses: { '200': { description: Scenarios } }
+    post:
+      tags: [Sandbox admin]
+      summary: Create a scenario
+      security: [{ adminBearer: [] }]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Scenario' } } } }
+      responses: { '200': { description: Created scenario }, '400': { $ref: '#/components/responses/Error' } }
+    delete:
+      tags: [Sandbox admin]
+      summary: Delete all scenarios (happy path)
+      security: [{ adminBearer: [] }]
+      responses: { '200': { description: Cleared } }
+  /admin-api/scenarios/presets/{key}:
+    post:
+      tags: [Sandbox admin]
+      summary: Apply a preset (replaces all scenarios)
+      security: [{ adminBearer: [] }]
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string, enum: [happy_path, digilocker_down, slow_network, flaky_documents, consent_denied, auto_approve, expired_tokens] } }
+      responses: { '200': { description: Applied } }
+  /admin-api/scenario-catalog:
+    get:
+      tags: [Sandbox admin]
+      summary: All supported effects, endpoints, scopes and presets
+      security: [{ adminBearer: [] }]
+      responses: { '200': { description: Catalog } }
+  /admin-api/requests:
+    get:
+      tags: [Sandbox admin]
+      summary: Request inspector log
+      security: [{ adminBearer: [] }]
+      parameters:
+        - { name: category, in: query, schema: { type: string, enum: [api, consent-ui, portal, demo-partner, admin] } }
+        - { name: status, in: query, schema: { type: string, enum: [ok, error] } }
+        - { name: client_id, in: query, schema: { type: string } }
+        - { name: trace_id, in: query, schema: { type: string }, description: Trace id or correlation id }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 200 } }
+      responses: { '200': { description: 'Log entries (GET /admin-api/requests/{id} for full detail)' } }

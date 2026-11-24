@@ -1,0 +1,29 @@
+{{template "head" .}}
+<style>.wrap{max-width:900px}pre{background:#0f1222;color:#d7dcf5;padding:12px;border-radius:8px;overflow:auto;font-size:12px;max-height:320px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px;border-bottom:1px solid #eef0f7;text-align:left}.ok{color:#067647;font-weight:700}.bad{color:#b42318;font-weight:700}
+.row{display:flex;gap:16px;flex-wrap:wrap}.row label{flex:1;min-width:180px}.chips{display:flex;gap:10px;flex-wrap:wrap}.chips label{flex-direction:row;align-items:center;gap:6px;font-weight:400}
+details{border:1px solid #eef0f7;border-radius:8px;margin:8px 0;padding:6px 10px}summary{cursor:pointer;font-weight:600;font-size:14px}</style>
+<section class="card">
+<h1>Demo partner application</h1>
+<p class="muted">A minimal relying party that runs the DigiLocker authorization-code flow against this sandbox, exchanges the code, then calls the user, issued-documents and file APIs and verifies each file's <code>hmac</code> header. Use it to smoke-test scenarios.</p>
+<form method="post" action="/demo-partner/start" class="form">
+<div class="row"><label>Client<select name="client_id">{{range .Clients}}<option value="{{.ClientID}}">{{.Name}} ({{.ClientID}}{{if .RequirePKCE}}, PKCE required{{end}})</option>{{end}}</select></label>
+<label>acr (optional)<select name="acr"><option value="">—</option><option>pan</option><option>aadhaar</option><option>driving_licence</option></select></label></div>
+<div class="chips"><span class="small muted">req_doctype:</span>{{range .DocTypes}}<label><input type="checkbox" name="req_doctype" value="{{.}}"> {{.}}</label>{{end}}</div>
+<div class="chips"><label><input type="checkbox" name="pkce" checked> PKCE (S256)</label><label><input type="checkbox" name="openid" checked> scope=openid (id_token)</label><label><input type="checkbox" name="dl_flow" value="signup"> dl_flow=signup</label></div>
+<div class="row"><label>Purpose (optional)<input name="purpose" placeholder="KYC for account opening"></label><label>consent_valid_till (unix ts, optional)<input name="consent_valid_till" placeholder=""></label></div>
+<button class="btn primary" type="submit">Login with Mock DigiLocker</button>
+</form>
+{{if not .Clients}}<div class="alert warn">No enabled client has <code>{{.PortalURL}}/demo-partner/callback</code> as a redirect URI. Add it in the Developer Console.</div>{{end}}
+</section>
+{{with .S}}{{if .Done}}<section class="card" id="result">
+<h2>Result</h2>
+{{if .Error}}<div class="alert error">{{.Error}}</div>{{else}}<div class="alert hint">Flow completed. Access token: <code>{{.AccessToken}}</code></div>
+{{if .RefreshToken}}<form method="post" action="/demo-partner/refresh" class="inline"><button class="btn" type="submit">Refresh access token</button></form>{{end}}{{end}}
+{{if .Docs}}<h2>Documents</h2><table><tr><th>Document</th><th>HTTP</th><th>Size</th><th>hmac</th><th></th></tr>
+{{range .Docs}}<tr><td>{{.Name}}<br><code class="small">{{.URI}}</code></td><td>{{.Status}}</td><td>{{.Size}}</td><td>{{if eq .Status 200}}{{if .HMACValid}}<span class="ok">valid</span>{{else}}<span class="bad">MISMATCH</span>{{end}}{{else}}<span class="bad">{{.Error}}</span>{{end}}</td>
+<td><a href="/demo-partner/file?uri={{q .URI}}" target="_blank">PDF</a> · <a href="/demo-partner/file?uri={{q .URI}}&fmt=xml" target="_blank">XML</a></td></tr>{{end}}</table>{{end}}
+{{if .IDClaims}}<h2>id_token claims (signature verified)</h2><pre>{{claims .IDClaims}}</pre>{{end}}
+<h2>API calls</h2>{{range .Calls}}<details><summary>{{.Method}} {{.Name}} → {{.Status}} ({{.Duration}} ms)</summary><div class="small muted">{{.URL}}</div><pre>{{pretty .Body}}</pre></details>{{end}}
+</section>{{end}}{{end}}
+{{template "foot" .}}

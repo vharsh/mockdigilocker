@@ -1,0 +1,57 @@
+# Mock DigiLocker — full stack for local / Docker-based development.
+#   docker compose up --build          → http://localhost:8080
+#   docker compose --profile observability up --build   (adds Jaeger at http://localhost:16686)
+name: mock-digilocker
+
+services:
+  mockdigilocker:
+    build: .
+    image: mock-digilocker:latest
+    env_file: deploy/env/docker.env
+    environment:
+      # override per machine without editing the env file
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    ports:
+      - "${MOCKDL_PORT:-8080}:8080"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mockdigilocker
+      POSTGRES_USER: mockdl
+      POSTGRES_PASSWORD: mockdl-local-only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mockdl -d mockdigilocker"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    profiles: ["observability"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+
+volumes:
+  pgdata:

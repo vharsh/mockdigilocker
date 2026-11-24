@@ -1,0 +1,19 @@
+{{template "head" .}}
+<section class="card">
+{{template "requester" .}}
+<h1>Sign in to your sandbox locker</h1>
+<p class="muted">Use a synthetic test account. Sign in with mobile number, e-mail or username.</p>
+{{template "alerts" .}}
+<div class="tabs"><a href="/oauth/login?req={{.Req.ID}}" class="{{if ne .Mode "pin"}}active{{end}}">OTP</a><a href="/oauth/login?req={{.Req.ID}}&mode=pin" class="{{if eq .Mode "pin"}}active{{end}}">Security PIN</a></div>
+<form method="post" action="/oauth/login" class="form" id="login-form">
+<input type="hidden" name="req" value="{{.Req.ID}}"><input type="hidden" name="mode" value="{{.Mode}}">
+<label>Mobile / e-mail / username<input name="identifier" id="identifier" value="{{.Identifier}}" autocomplete="username" required autofocus placeholder="9999900001"></label>
+{{if eq .Mode "pin"}}<label>6-digit security PIN<input name="pin" type="password" inputmode="numeric" pattern="\d{6}" maxlength="6" required autocomplete="current-password" placeholder="••••••"></label>
+<button class="btn primary" type="submit">Sign in</button>{{else}}<button class="btn primary" type="submit">Send OTP</button>{{end}}
+</form>
+<p class="small">New here? <a href="/oauth/register?req={{.Req.ID}}">Create a synthetic sandbox account</a></p>
+</section>
+{{if .TestUsers}}<section class="card"><h2>Predefined test personas</h2><p class="muted small">Click a persona to fill the login field. Default PIN for all personas: <code>123456</code>.</p>
+<div class="personas">{{range .TestUsers}}<button type="button" class="persona" data-id="{{.Mobile}}"><span class="p-name">{{.Name}}{{if .Disabled}} <em class="tag red">disabled</em>{{end}}</span><span class="p-desc">{{.Description}}</span><span class="p-id">{{.Mobile}} · {{.Email}}</span></button>{{end}}</div></section>
+<script>document.querySelectorAll('.persona').forEach(function(b){b.addEventListener('click',function(){var i=document.getElementById('identifier');i.value=b.dataset.id;i.focus();});});</script>{{end}}
+{{template "foot" .}}

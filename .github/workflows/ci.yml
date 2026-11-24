@@ -1,0 +1,25 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: UI build & tests
+        run: cd frontend && npm install && npm run build && npm test
+      - name: Go tests (memory + Redis)
+        run: cd backend && go vet ./... && go test -race ./... && TEST_REDIS_ADDR=localhost:6379 go test -count=1 ./...
+      - name: Docker image + smoke test
+        run: |
+          docker compose up --build -d
+          for i in $(seq 1 60); do curl -fs http://localhost:8080/readyz && break; sleep 2; done
+          ./scripts/smoke-test.sh
+          docker compose logs mockdigilocker | tail -50

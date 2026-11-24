@@ -1,0 +1,13 @@
+{{template "head" .}}
+<section class="card">
+{{template "requester" .}}
+<h1>Enter OTP</h1>
+<p class="muted">A one-time password was sent to <strong>{{.Identifier}}</strong> (delivered to the sandbox OTP outbox — no SMS or e-mail is sent).</p>
+{{template "alerts" .}}
+{{if .OTPHint}}<div class="alert hint">Sandbox OTP: <code class="big">{{.OTPHint}}</code></div>{{end}}
+<form method="post" action="/oauth/otp" class="form"><input type="hidden" name="req" value="{{.Req.ID}}">
+<label>One-time password<input name="otp" inputmode="numeric" maxlength="8" autocomplete="one-time-code" required autofocus placeholder="6-digit OTP"></label>
+<button class="btn primary" type="submit">Verify &amp; continue</button></form>
+<form method="post" action="/oauth/otp" class="inline"><input type="hidden" name="req" value="{{.Req.ID}}"><input type="hidden" name="action" value="resend"><button class="btn link" type="submit">Resend OTP</button></form>
+<a class="small" href="/oauth/switch?req={{.Req.ID}}">Use a different account</a>
+</section>{{template "foot" .}}

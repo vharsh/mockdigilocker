@@ -1,0 +1,10 @@
+{
+  "name": "example-legacy-paths",
+  "description": "Example: an app that calls /api/dl/* and expects ISO dates and documents under document_uri.",
+  "prefix_rewrites": { "/api/dl/": "/public/oauth2/1/" },
+  "path_aliases": { "/api/dl-token": "/public/oauth2/1/token" },
+  "dob_format": "YYYY-MM-DD",
+  "error_format": "oauth",
+  "rename": { "files_issued.items": { "uri": "document_uri" } },
+  "extra": { "token": { "provider": "mock-digilocker" } }
+}

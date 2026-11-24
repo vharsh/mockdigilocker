@@ -1,0 +1,16 @@
+{{template "head" .}}
+<section class="card">
+{{template "requester" .}}
+<h1>Create a synthetic sandbox account</h1>
+<div class="alert warn">Use <strong>fictional</strong> details only. Never enter your real name, Aadhaar, PAN or phone number.</div>
+{{template "alerts" .}}
+<form method="post" action="/oauth/register" class="form grid2"><input type="hidden" name="req" value="{{.Req.ID}}">
+<label class="span2">Full name (fictional)<input name="name" value="{{index .Form "name"}}" required placeholder="Test User"></label>
+<label>Date of birth<input type="date" name="dob" value="{{index .Form "dob"}}" required></label>
+<label>Gender<select name="gender" required><option value="">Select</option><option value="F" {{if eq (index .Form "gender") "F"}}selected{{end}}>Female</option><option value="M" {{if eq (index .Form "gender") "M"}}selected{{end}}>Male</option><option value="T" {{if eq (index .Form "gender") "T"}}selected{{end}}>Transgender</option></select></label>
+<label>Mobile (10 digits, fictional)<input name="mobile" value="{{index .Form "mobile"}}" inputmode="numeric" pattern="\d{10}" required placeholder="99999xxxxx"></label>
+<label>E-mail (optional)<input type="email" name="email" value="{{index .Form "email"}}" placeholder="you@sandbox.test"></label>
+<label class="span2">6-digit security PIN<input type="password" name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6" required></label>
+<button class="btn primary span2" type="submit">Create account &amp; send OTP</button></form>
+<p class="small">Already have a test account? <a href="/oauth/login?req={{.Req.ID}}">Sign in</a></p>
+</section>{{template "foot" .}}
